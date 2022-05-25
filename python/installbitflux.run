@@ -306,9 +306,7 @@ class UbuntuInstaller(InstallerBase):
     def default_settings(self):
         config = {
             "bitflux_key_url": "https://mirror.bitflux.ai/repository/keys/keys/bitflux_pub.key",
-            "apt_repo_url": "https://mirror.bitflux.ai/repository/focalRelease",
             "release_cmd": "lsb_release -d -s",
-            "version": "Ubuntu 20.04"
         }
         return config
 
@@ -344,6 +342,24 @@ class UbuntuInstaller(InstallerBase):
     def install_userspace_packages(self):
         self.vprint("=== Installing Bitflux ===")
         self.run_cmd("apt-get install -y bitfluxcollector")
+
+
+class UbuntuFocalInstaller(UbuntuInstaller):
+
+    def default_settings(self):
+        config = super().default_settings()
+        config["apt_repo_url"] = "https://mirror.bitflux.ai/repository/focalRelease",
+        config["version"] = "Ubuntu 20.04"
+        return config
+
+
+class UbuntuJammyInstaller(UbuntuInstaller):
+
+    def default_settings(self):
+        config = super().default_settings()
+        config["apt_repo_url"] = "https://mirror.bitflux.ai/repository/jammyRelease",
+        config["version"] = "Ubuntu 22.04"
+        return config
 
 
 class RockyInstaller(InstallerBase):
@@ -398,7 +414,7 @@ class InstallerFetcher(InstallerBase):
             if installer.is_supported():
                 return installer
         # Find a decent fit then
-        for installerclass in [UbuntuInstaller, RockyInstaller]:
+        for installerclass in [UbuntuFocalInstaller, UbuntuJammyInstaller, RockyInstaller]:
             installer = installerclass(self.config)
             name = installer.release_name()
             if name is None:
