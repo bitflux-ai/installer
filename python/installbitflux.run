@@ -407,14 +407,20 @@ class InstallerFetcher(InstallerBase):
     The point of this class is to return the appropriate installer object
     '''
 
+    installers = [
+                    UbuntuFocalInstaller,
+                    UbuntuJammyInstaller,
+                    RockyInstaller
+                 ]
+
     def get_installer(self):
         # First see if we have a supported version
-        for installerclass in [UbuntuInstaller, RockyInstaller]:
+        for installerclass in self.installers:
             installer = installerclass(self.config)
             if installer.is_supported():
                 return installer
         # Find a decent fit then
-        for installerclass in [UbuntuFocalInstaller, UbuntuJammyInstaller, RockyInstaller]:
+        for installerclass in self.installers:
             installer = installerclass(self.config)
             name = installer.release_name()
             if name is None:
