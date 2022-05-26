@@ -321,7 +321,7 @@ class UbuntuInstaller(InstallerBase):
         #self.run_cmd(["add-apt-repository", "deb [arch=amd64] https://mirror.bitflux.ai/repository/ubuntu focal main"])
         url = self.settings['apt_repo_url']
         eurl = url.translate(str.maketrans({"[":  r"\[", "]":  r"\]", ":": r"\:", "/":  r"\/"}))
-        self.run_cmd("add-apt-repository {}".format(url))
+        self.run_cmd("add-apt-repository -y {}".format(url))
         # hack sources.list to restrict Architecture
         self.run_cmd("sed -i \"s/deb {}/deb \[arch=amd64\] {}/g\" /etc/apt/sources.list".format(eurl,eurl), shell=True)
         self.run_cmd("sed -i \"s/deb-src {}/deb-src \[arch=amd64\] {}/g\" /etc/apt/sources.list".format(eurl,eurl), shell=True)
