@@ -60,7 +60,7 @@ class InstallerBase:
         self.settings = self.default_settings()
         self.reconcile_settings()
 
-    def default_settings(self):
+    def default_settings(self, opts=None):
         return {}
 
     def reconcile_settings(self):
@@ -303,10 +303,12 @@ class InstallerBase:
 
 class UbuntuInstaller(InstallerBase):
 
-    def default_settings(self):
+    def default_settings(self, opts=None):
         config = {
             "bitflux_key_url": "https://mirror.bitflux.ai/repository/keys/keys/bitflux_pub.key",
             "release_cmd": "lsb_release -d -s",
+            "apt_repo_url": "https://mirror.bitflux.ai/repository/{}Release".format(opts.get('nickname', 'missing nickname in opts')),
+            "version": opts.get('version', 'missing version in opts')
         }
         return config
 
@@ -347,29 +349,31 @@ class UbuntuInstaller(InstallerBase):
 class UbuntuFocalInstaller(UbuntuInstaller):
 
     def default_settings(self):
-        config = super().default_settings()
-        config["apt_repo_url"] = "https://mirror.bitflux.ai/repository/focalRelease",
-        config["version"] = "Ubuntu 20.04"
-        return config
+        opts = {
+            'nickname': 'focal',
+            'version': 'Ubuntu 20.04'
+        }
+        return super().default_settings(opts=opts)
 
 
 class UbuntuJammyInstaller(UbuntuInstaller):
 
     def default_settings(self):
-        config = super().default_settings()
-        config["apt_repo_url"] = "https://mirror.bitflux.ai/repository/jammyRelease",
-        config["version"] = "Ubuntu 22.04"
-        return config
+        opts = {
+            'nickname': 'jammy',
+            'version': 'Ubuntu 22.04'
+        }
+        return super().default_settings(opts=opts)
 
 
-class RockyInstaller(InstallerBase):
+class RedhatInstaller(InstallerBase):
 
-    def default_settings(self):
+    def default_settings(self, opts=None):
         config = {
             "bitflux_key_url": "https://mirror.bitflux.ai/repository/keys/keys/bitflux_pub.key",
-            "yum_repo_baseurl": "https://mirror.bitflux.ai/repository/yum/release/rocky/$releasever/$basearch",
+            "yum_repo_baseurl": "https://mirror.bitflux.ai/repository/yum/release/{}/$releasever/$basearch".format(opts.get('nickname', 'missing nickname in opts')),
             "release_cmd": "cat /etc/redhat-release",
-            "version": "Rocky Linux release 8.5 (Green Obsidian)"
+            "version": opts.get('version', 'missing version in opts')
         }
         return config
 
@@ -402,6 +406,43 @@ class RockyInstaller(InstallerBase):
         self.run_cmd("dnf install -y bitfluxcollector")
 
 
+class RockyInstaller(RedhatInstaller):
+
+    def default_settings(self):
+        opts = {
+            'nickname': 'rocky',
+            'version': 'Rocky Linux release 8.5 (Green Obsidian)'
+        }
+        return super().default_settings(opts=opts)
+
+
+class AmazonLinux2Installer(RedhatInstaller):
+
+    def default_settings(self):
+        opts = {
+            'nickname': 'amazon',
+            'version': 'Amazon Linux release 2 (Karoo)'
+        }
+        config = super().default_settings(opts=opts)
+        config['release_cmd'] = 'cat /etc/system-release'
+        return config
+
+    def install_kernel_packages(self):
+        self.vprint("=== Installing BitFlux kernel packages ===")
+        # Enable new repos
+        self.run_cmd("yum clean all")
+
+        # Installs custom bitflux kernels
+        self.run_cmd("yum install kernel-swaphints -y")
+
+        # Set swaphints kernel module to load on boot
+        self.run_cmd("echo \"swaphints\" >> /etc/modules-load.d/swaphints.conf", shell=True)
+
+    def install_userspace_packages(self):
+        self.vprint("=== Installing Bitflux ===")
+        self.run_cmd("yum install -y bitfluxcollector")
+
+
 class InstallerFetcher(InstallerBase):
     '''
     The point of this class is to return the appropriate installer object
@@ -410,7 +451,8 @@ class InstallerFetcher(InstallerBase):
     installers = [
                     UbuntuFocalInstaller,
                     UbuntuJammyInstaller,
-                    RockyInstaller
+                    RockyInstaller,
+                    AmazonLinux2Installer
                  ]
 
     def get_installer(self):
