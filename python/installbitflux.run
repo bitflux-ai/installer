@@ -168,42 +168,70 @@ class InstallerBase:
         sys.stderr.flush()
         return exitcode, make_str(out), make_str(err)
 
-    def rewrite_lines(self, data, t):
-        rosetta = {}
-        for k, v in t.items():
-            a = re.findall(k)
-            if len(a) < 1:
-                self.vprint("Couldn't find '{}' to replace".format(k))
-                continue
-            rosetta[a[0]] = v
-        odata = data.translate(str.maketrans(rosetta))
-        return odata
+    def rewrite_lines(self, data, terms):
+        odata = []
+        for line in data.splitlines():
+            for k,v in terms.items():
+                a = re.findall(k, line)
+                if len(a) > 0:
+                    line = v
+                    continue
+            odata.append(line)
+        odata.append("")
+        return "\n".join(odata)
 
     def list_grub_entries(self):
         data = read_file('/boot/grub/grub.cfg')
-        entries_list = re.findall(r'menuentry\s+\'([^\']+)\'', data)
-        entries = []
-        for i in range(len(entries_list)):
-            if '(recovery mode)' in entries_list[i]:
+        entries = {}
+        entries_ptr = entries
+        for line in data.splitlines():
+            a = re.findall(r'^menuentry\s+\'([^\']+)\'', line)
+            if len(a) > 0:
+                entries[a[0]] = {}
+                entries_ptr = entries
                 continue
-            if not 'swaphints' in entries_list[i]:
+            a = re.findall(r'^submenu\s+\'([^\']+)\'', line)
+            if len(a) > 0:
+                entries[a[0]] = {}
+                entries_ptr = entries[a[0]]
                 continue
-            entries.append({'i': i, 'name': entries_list[i]})
-        return entries
+            a = re.findall(r'\s+menuentry\s+\'([^\']+)\'', line)
+            if len(a) > 0:
+                entries_ptr[a[0]] = {}
+        entries_list = []
+        for k1,v1 in entries.items():
+            if len(v1) == 0:
+                entries_list.append(k1)
+            else:
+                for k2,v2 in v1.items():
+                    entry = "{}>{}".format(k1,k2)
+                    entries_list.append(entry)
+        return entries_list
+
+    def get_grub_entry(self):
+        entries_list = self.list_grub_entries()
+        for entry in entries_list:
+            if '(recovery mode)' in entry:
+                continue
+            if not 'swaphints' in entry:
+                continue
+            return entry
+        return None
 
     def edit_grub(self):
-        # WIP - haven't yet finished this feature.  May or may not finish.
-        entries = self.list_grub_entries()
-        if len(entries) < 1:
+        entry = self.get_grub_entry()
+        if entry is None:
             self.vprint("Can't recognize kernel builds.")
             return
         ogfile = read_file('/etc/default/grub')
         terms = {
                  'GRUB_TIMEOUT_STYLE=': 'GRUB_TIMEOUT_STYLE=menu',
                  'GRUB_TIMEOUT=': 'GRUB_TIMEOUT=2',
-                 'GRUB_DEFAULT=': 'GRUB_DEFAULT={}'.format(entries['i'])
+                 'GRUB_DEFAULT=': 'GRUB_DEFAULT=\"{}\"'.format(entry)
                 }
         newfile = self.rewrite_lines(ogfile, terms)
+        with open('/etc/default/grub', 'w') as f:
+            f.write(newfile)
 
     def interactive(self):
         if not self.config["interactive"]:
@@ -338,8 +366,9 @@ class UbuntuInstaller(InstallerBase):
         # Installs custom bitflux kernels
         self.run_cmd("apt-get install -y linux-image-swaphints")
 
-        # Set swaphints kernel module to load on boot
-        self.run_cmd("echo \"swaphints\" >> /etc/modules-load.d/swaphints.conf", shell=True)
+        if self.config['module']:
+            # Set swaphints kernel module to load on boot
+            self.run_cmd("echo \"swaphints\" >> /etc/modules-load.d/swaphints.conf", shell=True)
 
     def install_userspace_packages(self):
         self.vprint("=== Installing Bitflux ===")
@@ -398,8 +427,9 @@ class RedhatInstaller(InstallerBase):
         # Installs custom bitflux kernels
         self.run_cmd("dnf install kernel-swaphints -y")
 
-        # Set swaphints kernel module to load on boot
-        self.run_cmd("echo \"swaphints\" >> /etc/modules-load.d/swaphints.conf", shell=True)
+        if self.config['module']:
+            # Set swaphints kernel module to load on boot
+            self.run_cmd("echo \"swaphints\" >> /etc/modules-load.d/swaphints.conf", shell=True)
 
     def install_userspace_packages(self):
         self.vprint("=== Installing Bitflux ===")
@@ -435,8 +465,9 @@ class AmazonLinux2Installer(RedhatInstaller):
         # Installs custom bitflux kernels
         self.run_cmd("yum install kernel-swaphints -y")
 
-        # Set swaphints kernel module to load on boot
-        self.run_cmd("echo \"swaphints\" >> /etc/modules-load.d/swaphints.conf", shell=True)
+        if self.config['module']:
+            # Set swaphints kernel module to load on boot
+            self.run_cmd("echo \"swaphints\" >> /etc/modules-load.d/swaphints.conf", shell=True)
 
     def install_userspace_packages(self):
         self.vprint("=== Installing Bitflux ===")
@@ -474,6 +505,25 @@ class InstallerFetcher(InstallerBase):
         raise
 
 
+def test_interactive(args):
+    if args.quiet:
+        return False
+
+    if args.overrides is not None:
+        return False
+
+    #Only running grub_update
+    if args.nokernel and args.nocollector and args.grub_update:
+        print("three amigos")
+        return False
+
+    # Assume if you specify license you don't want to be chatty
+    if args.license is not None:
+        return False
+
+    return True
+
+
 if __name__ == '__main__':
 
     if os.geteuid() != 0:
@@ -483,6 +533,7 @@ if __name__ == '__main__':
     # Process command line
     parser = argparse.ArgumentParser()
     parser.add_argument('--nokernel', help='Skip kernel package install.', action='store_true')
+    parser.add_argument('--nomodule', help="Don't configure swaphints module to autostart.", action='store_true')
     parser.add_argument('--nocollector', help='Skip collector package install.', action='store_true')
     parser.add_argument('--quiet', help='No messages.', action='store_true')
     parser.add_argument('--reboot', help='Reboot after the fact.', action='store_true')
@@ -493,11 +544,10 @@ if __name__ == '__main__':
     parser.add_argument('--overrides', help="For testing purposes only.", default=None, type=str)
     args = parser.parse_args()
 
-    interactive = True if len(sys.argv) < 2 else False
-
     config = {}
-    config["interactive"] = interactive
+    config["interactive"] = test_interactive(args)
     config['kernel'] = not args.nokernel
+    config['module'] = not args.nomodule
     config['collector'] = not args.nocollector
     config['license'] = args.license
     config['deviceid'] = args.deviceid
