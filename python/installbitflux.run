@@ -8,6 +8,9 @@ import subprocess
 import os
 import re
 import sys
+import socket
+import string
+import random
 import argparse
 import pty
 import select
@@ -48,6 +51,13 @@ def sort_entries(e):
         s.append(a)
     print(" ".join(s))
     return " ".join(s)
+
+
+def random_hostname(length=12):
+    ha = []
+    while len(ha) < length:
+        ha.append(random.choice(string.ascii_letters).lower())
+    return "".join(ha)
 
 
 class InstallerBase:
@@ -233,6 +243,24 @@ class InstallerBase:
         with open('/etc/default/grub', 'w') as f:
             f.write(newfile)
 
+    def interactive_machinename(self):
+        print("------- Machine Name -------")
+        print("BitFlux needs a name identify this machine in the Dashboard. (Default is hostname)")
+        hostname = socket.gethostname()
+        if len(hostname) < 1:
+            print("Can't get hostname from . Making up a random name.")
+            hostname = ""
+        while True:
+            v = input("Accept '{}' as machine name? [Y/n] ".format(hostname))
+            if v.upper() in ['Y', 'YES']:
+                self.config['deviceid'] = hostname
+                break
+            if v.upper() in ['N', 'NO']:
+                hostname = input("Enter machine name for this device: ")
+                continue
+            print("Sorry didn't understand - '{}'".format(v))
+            print("Enter Y or n")
+
     def interactive(self):
         if not self.config["interactive"]:
             return
@@ -255,12 +283,7 @@ class InstallerBase:
         else:
             self.config['license'] = v
 
-        v = input("Enter Your deviceid [<name to identify this device>/N]: ")
-        if v.upper() in ['N', 'NO']:
-            self.config['deviceid'] = None
-            print("Skipping setting of deviceid, see User Manual to change this setting.")
-        else:
-            self.config['deviceid'] = v
+        self.interactive_machinename()
 
     def reboot(self):
         self.vprint("=== Reboot Required ===")
