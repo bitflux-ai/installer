@@ -232,6 +232,7 @@ class InstallerBase:
         newfile = self.rewrite_lines(ogfile, terms)
         with open('/etc/default/grub', 'w') as f:
             f.write(newfile)
+        self.run_cmd("update-grub")
 
     def interactive(self):
         if not self.config["interactive"]:
