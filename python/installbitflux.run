@@ -8,6 +8,9 @@ import subprocess
 import os
 import re
 import sys
+import socket
+import string
+import random
 import argparse
 import pty
 import select
@@ -50,6 +53,13 @@ def sort_entries(e):
     return " ".join(s)
 
 
+def random_hostname(length=12):
+    ha = []
+    while len(ha) < length:
+        ha.append(random.choice(string.ascii_letters).lower())
+    return "".join(ha)
+
+
 class InstallerBase:
 
     def __init__(self, config):
@@ -57,6 +67,7 @@ class InstallerBase:
         self.verbose = self.config['verbose']
         self.quiet = self.config['quiet']
         self.live_output = not self.config['quiet']
+        self.dryrun = self.config['dryrun']
         self.settings = self.default_settings()
         self.reconcile_settings()
 
@@ -89,7 +100,7 @@ class InstallerBase:
             print(str)
 
     def do_release(self, cmd):
-        exitcode, out, err = self.run_cmd(cmd, shell=True, allow_errors=True, verbose_overide=False, live_overide=False)
+        exitcode, out, err = self.run_cmd(cmd, shell=True, allow_errors=True, verbose_overide=False, live_overide=False, safe=True)
         if exitcode == 0:
             return out.strip()
         return None
@@ -106,12 +117,15 @@ class InstallerBase:
             return True
         return False
 
-    def run_cmd(self, cmd, shell=False, allow_errors=False, verbose_overide=None, live_overide=None):
+    def run_cmd(self, cmd, shell=False, allow_errors=False, verbose_overide=None, live_overide=None, safe=False):
         live_output = self.live_output if live_overide is None else live_overide
         verbose = self.verbose if verbose_overide is None else verbose_overide
         aout = []
         aerr = []
         sources, replicas = zip(pty.openpty(), pty.openpty())
+        if self.dryrun and not safe:
+            print("dryrun skipped: '{}'".format(cmd))
+            return 0, "", ""
         if not shell and isinstance(cmd, str):
             cmd = cmd.split()
         with subprocess.Popen(cmd, shell=shell, stdin=replicas[0], stdout=replicas[0], stderr=replicas[1]) as p:
@@ -230,44 +244,67 @@ class InstallerBase:
                  'GRUB_DEFAULT=': 'GRUB_DEFAULT=\"{}\"'.format(entry)
                 }
         newfile = self.rewrite_lines(ogfile, terms)
-        with open('/etc/default/grub', 'w') as f:
-            f.write(newfile)
+        if not self.dryrun:
+            with open('/etc/default/grub', 'w') as f:
+                f.write(newfile)
+        self.run_cmd("update-grub")
+
+    def interactive_machinename(self):
+        print("------- Machine Name -------")
+        print("A machine name is required identify this machine in the Dashboard. (Default is hostname)")
+        hostname = socket.gethostname()
+        if len(hostname) < 1:
+            print("Can't get hostname from . Making up a random name.")
+            hostname = random_hostname()
+        while True:
+            v = input("Accept '{}' as machine name? [Y/n] ".format(hostname))
+            if v.upper() in ['Y', 'YES'] or len(v) == 0:
+                self.config['deviceid'] = hostname
+                break
+            if v.upper() in ['N', 'NO']:
+                hostname = input("Enter your own machine name for this device: ")
+                continue
+            print("Sorry didn't understand - '{}'".format(v))
+            print("Enter Y or n")
+
+    def interactive_apitoken(self):
+        print("------- APIToken -------")
+        print("The APIToken validates this machine against your account in BitFlux.")
+        print("See https://wiki.bitflux.ai/en/quick-start-guide for details on how to obtain your APIToken.")
+        apitoken = input("Enter APIToken: ")
+        if len(apitoken) == 0:
+            self.config['license'] = None
+            print("Empty APIToken. See wiki.bitflux.ai for details on how to set up the APIToken after install.")
+        else:
+            self.config['license'] = apitoken
 
     def interactive(self):
         if not self.config["interactive"]:
             return
+        print("------- Install Type -------")
+        print("BitFlux can be installed in Profiling Mode, or Full Install enabling memory savings.")
         while True:
-            v = input("Install Custom Kernel to enable Reclaim? [Y/n] ")
-            if v.upper() in ['Y', 'YES']:
+            v = input("Full Install? [Y/n] ")
+            if v.upper() in ['Y', 'YES'] or len(v) == 0:
                 self.config['kernel'] = True
                 break
             if v.upper() in ['N', 'NO']:
                 self.config['kernel'] = False
-                print("Skipping Kernel package install.")
+                print("Proceding with Profiling Mode installation.")
+                print("To upgrade from Profiling Mode to Full Install, run this installer script again.")
                 break
             print("Sorry didn't understand - '{}'".format(v))
             print("Enter Y or n")
 
-        v = input("Enter Your provided license key or n to skip [<license>/N]: ")
-        if v.upper() in ['N', 'NO']:
-            self.config['license'] = None
-            print("Skipping License Key setup see User Manual to change this setting.")
-        else:
-            self.config['license'] = v
-
-        v = input("Enter Your deviceid [<name to identify this device>/N]: ")
-        if v.upper() in ['N', 'NO']:
-            self.config['deviceid'] = None
-            print("Skipping setting of deviceid, see User Manual to change this setting.")
-        else:
-            self.config['deviceid'] = v
+        self.interactive_machinename()
+        self.interactive_apitoken()
 
     def reboot(self):
         self.vprint("=== Reboot Required ===")
         if self.config['interactive']:
             while True:
                 v = input("Reboot Now? [Y/n]: ")
-                if v.upper() in ['Y', 'YES']:
+                if v.upper() in ['Y', 'YES'] or len(v) == 0:
                     self.config['reboot'] = True
                     break
                 if v.upper() in ['N', 'NO']:
@@ -283,18 +320,18 @@ class InstallerBase:
     def configure_license(self):
         if self.config['license'] is None:
             return
-        self.vprint("=== Configuring Bitflux licensekey ===")
+        self.vprint("=== Configuring BitFlux APIToken ===")
         self.run_cmd("sed -i \"s/licensekey.*/licensekey={}/g\" /opt/bitflux/config/bitflux/bitfluxcollector.conf".format(self.config['license']), shell=True)
-        self.vprint("Set license key '{}'".format(self.config['license']))
-        self.vprint("NOTE: To edit your license key after the fact, see https://wiki.bitflux.ai for details.")
+        self.vprint("Set APIToken '{}'".format(self.config['license']))
+        self.vprint("NOTE: To edit your APIToken later, see https://wiki.bitflux.ai for details.")
 
     def configure_deviceid(self):
         if self.config['deviceid'] is None:
             return
-        self.vprint("=== Configuring Bitflux deviceid ===")
+        self.vprint("=== Configuring BitFlux Machine Name ===")
         self.run_cmd("sed -i \"s/deviceid.*/deviceid={}/g\" /opt/bitflux/config/bitflux/bitfluxcollector.conf".format(self.config['deviceid']), shell=True)
-        self.vprint("Set deviceid '{}'".format(self.config['deviceid']))
-        self.vprint("NOTE: To edit your deviceid after the fact, see https://wiki.bitflux.ai for details.")
+        self.vprint("Set Machine Name '{}'".format(self.config['deviceid']))
+        self.vprint("NOTE: To edit your Machine Name later, see https://wiki.bitflux.ai for details.")
 
     def enable_and_start_systemd_service(self):
         self.vprint("=== Enabling and restarting BitFlux service ===")
@@ -541,6 +578,7 @@ if __name__ == '__main__':
     parser.add_argument('--grub_update', help='EXPERIMENTAL - update grub.', action='store_true')
     parser.add_argument('--license', help="Set license key.", default=None, type=str)
     parser.add_argument('--deviceid', help="Set deviceid.", default=None, type=str)
+    parser.add_argument('--dryrun', help="Don't change state. For testing purposes only.", action='store_true')
     parser.add_argument('--overrides', help="For testing purposes only.", default=None, type=str)
     args = parser.parse_args()
 
@@ -555,6 +593,7 @@ if __name__ == '__main__':
     config['verbose'] = args.verbose
     config['grub_update'] = args.grub_update
     config['quiet'] = args.quiet
+    config['dryrun'] = args.dryrun
     config['overrides'] = args.overrides
 
     installer = InstallerFetcher(config).get_installer()
