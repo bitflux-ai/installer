@@ -401,7 +401,7 @@ class UbuntuInstaller(InstallerBase):
         self.run_cmd("apt-mark hold linux-generic linux-image-generic linux-headers-generic")
 
         # Installs custom bitflux kernels
-        self.run_cmd("apt-get install -y linux-image-swaphints")
+        self.run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y linux-image-swaphints")
 
         if self.config['module']:
             # Set swaphints kernel module to load on boot
