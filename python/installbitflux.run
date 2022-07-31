@@ -387,7 +387,6 @@ class UbuntuInstaller(InstallerBase):
     def install_bitflux_repository(self):
         self.vprint("=== Installing BitFlux repository ===")
         url = self.settings['apt_repo_url']
-        self.run_cmd("add-apt-repository --yes --enable-source --uri {}".format(url))
         bs = [  "X-Repolib-Name: BitFlux",
                 "Enabled: yes",
                 "Types: deb",
