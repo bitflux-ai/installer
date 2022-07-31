@@ -372,7 +372,7 @@ class UbuntuInstaller(InstallerBase):
         config = {
             "bitflux_key_url": "https://mirror.bitflux.ai/repository/keys/keys/bitflux_pub.key",
             "release_cmd": "lsb_release -d -s",
-            "nickname" = opts.get('nickname', 'missing nickname in opts'),
+            "nickname": opts.get('nickname', 'missing nickname in opts'),
             "apt_repo_url": "https://mirror.bitflux.ai/repository/{}Release".format(opts.get('nickname', 'missing nickname in opts')),
             "version": opts.get('version', 'missing version in opts')
         }
