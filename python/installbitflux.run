@@ -397,7 +397,6 @@ class UbuntuInstaller(InstallerBase):
              ]
         with open("/etc/apt/sources.list.d/bitflux.sources", 'w') as file:
             file.writelines(bs)
-        self.hack_for_arch_amd64(sourcefile)
         self.run_cmd("apt-get update")
 
     def install_repository(self):
