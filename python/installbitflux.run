@@ -387,13 +387,13 @@ class UbuntuInstaller(InstallerBase):
     def install_bitflux_repository(self):
         self.vprint("=== Installing BitFlux repository ===")
         url = self.settings['apt_repo_url']
-        bs = [  "X-Repolib-Name: BitFlux",
-                "Enabled: yes",
-                "Types: deb",
-                "URIs: {}".format(url),
-                "Suites: {}".format(self.settings['nickname']),
-                "Components: main",
-                "Architectures: amd64"
+        bs = [  "X-Repolib-Name: BitFlux\n",
+                "Enabled: yes\n",
+                "Types: deb\n",
+                "URIs: {}\n".format(url),
+                "Suites: {}\n".format(self.settings['nickname']),
+                "Components: main\n",
+                "Architectures: amd64\n"
              ]
         with open("/etc/apt/sources.list.d/bitflux.sources", 'w') as file:
             file.writelines(bs)
