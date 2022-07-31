@@ -194,6 +194,13 @@ class InstallerBase:
         odata.append("")
         return "\n".join(odata)
 
+    def replace_str_in_file(self, filename, src, dst):
+        with open(filename, 'r') as file :
+            filedata = file.read()
+        filedata = filedata.replace(src, dst)
+        with open(filename, 'w') as file:
+            file.write(filedata)
+
     def list_grub_entries(self):
         data = read_file('/boot/grub/grub.cfg')
         entries = {}
@@ -377,22 +384,52 @@ class UbuntuInstaller(InstallerBase):
         }
         return config
 
-    def install_repository(self):
-        self.vprint("=== Installing BitFlux repository and key ===")
-        # Install and configure repository
-        cmd = "wget -qO - {} | apt-key add".format(self.settings['bitflux_key_url'])
+    def rename_sourcefile(self, d):
+        '''
+        The file created by add-apt-repository has an ugly name,
+        lets rename it.
+        But also, what if we have a .save file or something.
+        '''
+        o = {}
+        for f in os.listdir(d):
+            if 'bitflux' not in f:
+                continue
+            o[os.path.getmtime(n)] = os.path.join(d,f)
+        # Now we have the full list of bitflux related files.
+        # we're gonna assume the most recently modified file
+        # is the one we want.
+        m = max(o.keys())
+        src = o[m]
+        dst = os.path.join(d, 'bitflux.list')
+        os.rename(src, dst)
+        return dst
+
+    def hack_for_arch_amd64(self, sourcefile):
+        # Hack to get rid of i386 missing arch warnings
+        # array below can have deb-src if supported
+        for deb in ["deb"]:
+            src = "{} {}".format(db, url)
+            dst = "{} [arch=amd64] {}".format(db, url)
+            self.replace_str_in_file(sourcefile, src, dst)
+
+    def install_bitflux_key(self):
+        self.vprint("=== Installing BitFlux key ===")
+        # Install key
+        cmd = "wget -qO - {} | tee /etc/apt/trusted.gpg.d/bitflux_ai.asc".format(self.settings['bitflux_key_url'])
         self.run_cmd(cmd, shell=True)
-        # This commented line works but, I think this direction is more restricted
-        # note that we have to specify focal and main, which is auto-generated if
-        # the add-apt-repository.  Lets watch this as we add more distros.
-        #self.run_cmd(["add-apt-repository", "deb [arch=amd64] https://mirror.bitflux.ai/repository/ubuntu focal main"])
+
+    def install_bitflux_repository(self):
+        self.vprint("=== Installing BitFlux repository ===")
         url = self.settings['apt_repo_url']
-        eurl = url.translate(str.maketrans({"[":  r"\[", "]":  r"\]", ":": r"\:", "/":  r"\/"}))
-        self.run_cmd("add-apt-repository -y {}".format(url))
-        # hack sources.list to restrict Architecture
-        self.run_cmd("sed -i \"s/deb {}/deb \[arch=amd64\] {}/g\" /etc/apt/sources.list".format(eurl,eurl), shell=True)
-        self.run_cmd("sed -i \"s/deb-src {}/deb-src \[arch=amd64\] {}/g\" /etc/apt/sources.list".format(eurl,eurl), shell=True)
+        self.run_cmd("add-apt-repository --yes --enable-source --uri {}".format(url))
+        d = "/etc/apt/sources.list.d"
+        sourcefile = self.rename_sourcefile(d)
+        self.hack_for_arch_amd64(sourcefile)
         self.run_cmd("apt-get update")
+
+    def install_repository(self):
+        self.install_bitflux_key()
+        self.install_bitflux_repository()
 
     def install_kernel_packages(self):
         self.vprint("=== Installing BitFlux kernel packages ===")
@@ -421,6 +458,25 @@ class UbuntuFocalInstaller(UbuntuInstaller):
         }
         return super().default_settings(opts=opts)
 
+    def install_bitflux_key(self):
+        self.vprint("=== Installing BitFlux key ===")
+        # Install key
+        cmd = "wget -qO - {} | apt-key add".format(self.settings['bitflux_key_url'])
+        self.run_cmd(cmd, shell=True)
+
+    def install_bitflux_repository(self):
+        self.vprint("=== Installing BitFlux repository ===")
+        # This commented line works but, I think this direction is more restricted
+        # note that we have to specify focal and main, which is auto-generated if
+        # the add-apt-repository.  Lets watch this as we add more distros.
+        #self.run_cmd(["add-apt-repository", "deb [arch=amd64] https://mirror.bitflux.ai/repository/ubuntu focal main"])
+        url = self.settings['apt_repo_url']
+        eurl = url.translate(str.maketrans({"[":  r"\[", "]":  r"\]", ":": r"\:", "/":  r"\/"}))
+        self.run_cmd("add-apt-repository -y {}".format(url))
+        # hack sources.list to restrict Architecture
+        self.run_cmd("sed -i \"s/deb {}/deb \[arch=amd64\] {}/g\" /etc/apt/sources.list".format(eurl,eurl), shell=True)
+        self.run_cmd("sed -i \"s/deb-src {}/deb-src \[arch=amd64\] {}/g\" /etc/apt/sources.list".format(eurl,eurl), shell=True)
+        self.run_cmd("apt-get update")
 
 class UbuntuJammyInstaller(UbuntuInstaller):
 
