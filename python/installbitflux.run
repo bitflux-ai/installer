@@ -194,13 +194,6 @@ class InstallerBase:
         odata.append("")
         return "\n".join(odata)
 
-    def replace_str_in_file(self, filename, src, dst):
-        with open(filename, 'r') as file :
-            filedata = file.read()
-        filedata = filedata.replace(src, dst)
-        with open(filename, 'w') as file:
-            file.write(filedata)
-
     def list_grub_entries(self):
         data = read_file('/boot/grub/grub.cfg')
         entries = {}
@@ -379,38 +372,11 @@ class UbuntuInstaller(InstallerBase):
         config = {
             "bitflux_key_url": "https://mirror.bitflux.ai/repository/keys/keys/bitflux_pub.key",
             "release_cmd": "lsb_release -d -s",
+            "nickname" = opts.get('nickname', 'missing nickname in opts')
             "apt_repo_url": "https://mirror.bitflux.ai/repository/{}Release".format(opts.get('nickname', 'missing nickname in opts')),
             "version": opts.get('version', 'missing version in opts')
         }
         return config
-
-    def rename_sourcefile(self, d):
-        '''
-        The file created by add-apt-repository has an ugly name,
-        lets rename it.
-        But also, what if we have a .save file or something.
-        '''
-        o = {}
-        for f in os.listdir(d):
-            if 'bitflux' not in f:
-                continue
-            o[os.path.getmtime(n)] = os.path.join(d,f)
-        # Now we have the full list of bitflux related files.
-        # we're gonna assume the most recently modified file
-        # is the one we want.
-        m = max(o.keys())
-        src = o[m]
-        dst = os.path.join(d, 'bitflux.list')
-        os.rename(src, dst)
-        return dst
-
-    def hack_for_arch_amd64(self, sourcefile):
-        # Hack to get rid of i386 missing arch warnings
-        # array below can have deb-src if supported
-        for deb in ["deb"]:
-            src = "{} {}".format(db, url)
-            dst = "{} [arch=amd64] {}".format(db, url)
-            self.replace_str_in_file(sourcefile, src, dst)
 
     def install_bitflux_key(self):
         self.vprint("=== Installing BitFlux key ===")
@@ -422,8 +388,16 @@ class UbuntuInstaller(InstallerBase):
         self.vprint("=== Installing BitFlux repository ===")
         url = self.settings['apt_repo_url']
         self.run_cmd("add-apt-repository --yes --enable-source --uri {}".format(url))
-        d = "/etc/apt/sources.list.d"
-        sourcefile = self.rename_sourcefile(d)
+        bs = [  "X-Repolib-Name: BitFlux",
+                "Enabled: yes",
+                "Types: deb",
+                "URIs: {}".format(url),
+                "Suites: {}".format(self.settings['nickname']),
+                "Components: main",
+                "Architectures: amd64"
+             ]
+        with open("/etc/apt/sources.list.d/bitflux.sources", 'w') as file:
+            file.writelines(bs)
         self.hack_for_arch_amd64(sourcefile)
         self.run_cmd("apt-get update")
 
