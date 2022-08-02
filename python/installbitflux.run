@@ -418,7 +418,7 @@ class UbuntuInstaller(InstallerBase):
 
     def install_userspace_packages(self):
         self.vprint("=== Installing Bitflux ===")
-        self.run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y bitfluxcollector")
+        self.run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y bitfluxcollector", shell=True)
 
 
 class UbuntuFocalInstaller(UbuntuInstaller):
