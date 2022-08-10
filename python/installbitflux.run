@@ -68,6 +68,9 @@ class InstallerBase:
         self.quiet = self.config['quiet']
         self.live_output = not self.config['quiet']
         self.dryrun = self.config['dryrun']
+        self.config['bitflux_configfile'] = "/etc/bitflux/config/bitflux.conf"
+        self.config['bitflux_pkgname'] = "bitflux"
+        self.config['bitflux_servicename'] = "bitflux"
         self.settings = self.default_settings()
         self.reconcile_settings()
 
@@ -321,7 +324,7 @@ class InstallerBase:
         if self.config['license'] is None:
             return
         self.vprint("=== Configuring BitFlux APIToken ===")
-        self.run_cmd("sed -i \"s/licensekey.*/licensekey={}/g\" /opt/bitflux/config/bitflux/bitfluxcollector.conf".format(self.config['license']), shell=True)
+        self.run_cmd("sed -i \"s/licensekey.*/licensekey={}/g\" {}".format(self.config['license'], self.config['bitflux_configfile']), shell=True)
         self.vprint("Set APIToken '{}'".format(self.config['license']))
         self.vprint("NOTE: To edit your APIToken later, see https://wiki.bitflux.ai for details.")
 
@@ -329,14 +332,14 @@ class InstallerBase:
         if self.config['deviceid'] is None:
             return
         self.vprint("=== Configuring BitFlux Machine Name ===")
-        self.run_cmd("sed -i \"s/deviceid.*/deviceid={}/g\" /opt/bitflux/config/bitflux/bitfluxcollector.conf".format(self.config['deviceid']), shell=True)
+        self.run_cmd("sed -i \"s/deviceid.*/deviceid={}/g\" {}".format(self.config['deviceid'], self.config['bitflux_configfile']), shell=True)
         self.vprint("Set Machine Name '{}'".format(self.config['deviceid']))
         self.vprint("NOTE: To edit your Machine Name later, see https://wiki.bitflux.ai for details.")
 
     def enable_and_start_systemd_service(self):
         self.vprint("=== Enabling and restarting BitFlux service ===")
-        self.run_cmd("systemctl restart bitfluxcollector")
-        self.run_cmd("systemctl enable bitfluxcollector")
+        self.run_cmd("systemctl restart {}".format(self.config['bitflux_servicename']))
+        self.run_cmd("systemctl enable {}".format(self.config['bitflux_servicename']))
 
     def install_repository(self):
         print("override in child class")
@@ -418,7 +421,8 @@ class UbuntuInstaller(InstallerBase):
 
     def install_userspace_packages(self):
         self.vprint("=== Installing Bitflux ===")
-        self.run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y bitfluxcollector", shell=True)
+        cmd = "DEBIAN_FRONTEND=noninteractive apt-get install -y {}".format(self.config['bitflux_pkgname'])
+        self.run_cmd(cmd, shell=True)
 
 
 class UbuntuFocalInstaller(UbuntuInstaller):
@@ -498,7 +502,7 @@ class RedhatInstaller(InstallerBase):
 
     def install_userspace_packages(self):
         self.vprint("=== Installing Bitflux ===")
-        self.run_cmd("dnf install -y bitfluxcollector")
+        self.run_cmd("dnf install -y {}".format(self.config['bitflux_pkgname']))
 
 
 class RockyInstaller(RedhatInstaller):
@@ -536,7 +540,7 @@ class AmazonLinux2Installer(RedhatInstaller):
 
     def install_userspace_packages(self):
         self.vprint("=== Installing Bitflux ===")
-        self.run_cmd("yum install -y bitfluxcollector")
+        self.run_cmd("yum install -y {}".format(self.config['bitflux_pkgname']))
 
 
 class InstallerFetcher(InstallerBase):
