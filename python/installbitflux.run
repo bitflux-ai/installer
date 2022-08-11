@@ -361,7 +361,7 @@ class InstallerBase:
             self.install_kernel_packages()
         if self.config['grub_update']:
             self.edit_grub()
-        if self.config['collector']:
+        if self.config['bitflux']:
             self.install_userspace_packages()
             self.configure_license()
             self.configure_deviceid()
@@ -582,7 +582,7 @@ def test_interactive(args):
         return False
 
     #Only running grub_update
-    if args.nokernel and args.nocollector and args.grub_update:
+    if args.nokernel and args.nobitflux and args.grub_update:
         print("three amigos")
         return False
 
@@ -603,7 +603,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--nokernel', help='Skip kernel package install.', action='store_true')
     parser.add_argument('--nomodule', help="Don't configure swaphints module to autostart.", action='store_true')
-    parser.add_argument('--nocollector', help='Skip collector package install.', action='store_true')
+    parser.add_argument('--nobitflux', help='Skip bitflux package install.', action='store_true')
     parser.add_argument('--quiet', help='No messages.', action='store_true')
     parser.add_argument('--reboot', help='Reboot after the fact.', action='store_true')
     parser.add_argument('--verbose', help='Extra debug info.', action='store_true')
@@ -618,7 +618,7 @@ if __name__ == '__main__':
     config["interactive"] = test_interactive(args)
     config['kernel'] = not args.nokernel
     config['module'] = not args.nomodule
-    config['collector'] = not args.nocollector
+    config['bitflux'] = not args.nobitflux
     config['license'] = args.license
     config['deviceid'] = args.deviceid
     config['reboot'] = args.reboot
