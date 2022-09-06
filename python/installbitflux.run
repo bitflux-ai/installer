@@ -230,7 +230,7 @@ class InstallerBase:
         for entry in entries_list:
             if '(recovery mode)' in entry:
                 continue
-            if not 'swaphints' in entry:
+            if not self.config['version'] in entry:
                 continue
             return entry
         return None
@@ -356,7 +356,8 @@ class InstallerBase:
         self.interactive()
         if self.verbose:
             print(self.config)
-        self.install_repository()
+        if self.config['kernel'] or self.config['bitflux']:
+            self.install_repository()
         if self.config['kernel']:
             self.install_kernel_packages()
         if self.config['grub_update']:
@@ -608,6 +609,7 @@ if __name__ == '__main__':
     parser.add_argument('--reboot', help='Reboot after the fact.', action='store_true')
     parser.add_argument('--verbose', help='Extra debug info.', action='store_true')
     parser.add_argument('--grub_update', help='EXPERIMENTAL - update grub.', action='store_true')
+    parser.add_argument('--version', help='version to look for in grub.', default='swaphints', type=str)
     parser.add_argument('--license', help="Set license key.", default=None, type=str)
     parser.add_argument('--deviceid', help="Set deviceid.", default=None, type=str)
     parser.add_argument('--dryrun', help="Don't change state. For testing purposes only.", action='store_true')
@@ -624,6 +626,7 @@ if __name__ == '__main__':
     config['reboot'] = args.reboot
     config['verbose'] = args.verbose
     config['grub_update'] = args.grub_update
+    config['version'] = args.version
     config['quiet'] = args.quiet
     config['dryrun'] = args.dryrun
     config['overrides'] = args.overrides
