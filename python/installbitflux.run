@@ -548,7 +548,7 @@ class RockyInstaller(RedhatInstaller):
     def default_settings(self):
         opts = {
             'nickname': 'rocky',
-            'version': 'Rocky Linux release 8.5 (Green Obsidian)'
+            'version': 'Rocky Linux release 8.'
         }
         return super().default_settings(opts=opts)
 
