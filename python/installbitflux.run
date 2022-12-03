@@ -339,7 +339,11 @@ class InstallerBase:
     def enable_and_start_systemd_service(self):
         self.vprint("=== Enabling and restarting BitFlux service ===")
         self.run_cmd("systemctl restart {}".format(self.config['bitflux_servicename']))
-        self.run_cmd("systemctl enable {}".format(self.config['bitflux_servicename']))
+        exitcode, _, _ = self.run_cmd("systemctl enable {}".format(self.config['bitflux_servicename']), allow_errors=True)
+        if exitcode != 0:
+            print("Cleaning up an old service file, then retrying.")
+            self.run_cmd("rm -rf /etc/systemd/system/bitfluxcollector.service", allow_errors=True)
+            self.run_cmd("systemctl enable {}".format(self.config['bitflux_servicename']))
 
     def install_repository(self):
         print("override in child class")
