@@ -74,7 +74,7 @@ class InstallerBase:
         self.settings = self.default_settings()
         self.reconcile_settings()
 
-    def default_settings(self, opts=None):
+    def default_settings(self, opts={}):
         return {}
 
     def reconcile_settings(self):
@@ -372,14 +372,28 @@ class InstallerBase:
 
 class UbuntuInstaller(InstallerBase):
 
-    def default_settings(self, opts=None):
+    def default_settings(self, opts={}):
         config = {
             "bitflux_key_url": "https://mirror.bitflux.ai/repository/keys/keys/bitflux_pub.key",
             "release_cmd": "lsb_release -d -s",
-            "nickname": opts.get('nickname', 'missing nickname in opts'),
-            "apt_repo_url": "https://mirror.bitflux.ai/repository/{}Release".format(opts.get('nickname', 'missing nickname in opts')),
-            "version": opts.get('version', 'missing version in opts')
         }
+        if opts.get("nickname", False):
+            config["nickname"] = opts['nickname']
+        else:
+            print("=== missing 'nickname' in opts ===")
+            raise
+
+        if opts.get("version", False):
+            config["version"] = opts["version"]
+        else:
+            print("=== missing 'version' in opts ===")
+            raise
+
+        if opts.get("apt_repo_url", False):
+            config["apt_repo_url"] = opts['apt_repo_url']
+        else:
+            url = "https://mirror.bitflux.ai/repository/{}Release".format(opts.get('nickname', 'missing nickname and apt_repo_url in opts'))
+            config["apt_repo_url"] = url
         return config
 
     def install_bitflux_key(self):
@@ -455,6 +469,7 @@ class UbuntuFocalInstaller(UbuntuInstaller):
         self.run_cmd("sed -i \"s/deb-src {}/deb-src \[arch=amd64\] {}/g\" /etc/apt/sources.list".format(eurl,eurl), shell=True)
         self.run_cmd("apt-get update")
 
+
 class UbuntuJammyInstaller(UbuntuInstaller):
 
     def default_settings(self):
@@ -465,9 +480,20 @@ class UbuntuJammyInstaller(UbuntuInstaller):
         return super().default_settings(opts=opts)
 
 
+class Popos2204Installer(UbuntuInstaller):
+
+    def default_settings(self):
+        opts = {
+            'nickname': 'jammy',
+            'version': 'Pop!_OS 22.04 LTS',
+            'apt_repo_url': 'https://mirror.bitflux.ai/repository/popos2204Release'
+        }
+        return super().default_settings(opts=opts)
+
+
 class RedhatInstaller(InstallerBase):
 
-    def default_settings(self, opts=None):
+    def default_settings(self, opts={}):
         config = {
             "bitflux_key_url": "https://mirror.bitflux.ai/repository/keys/keys/bitflux_pub.key",
             "yum_repo_baseurl": "https://mirror.bitflux.ai/repository/yum/release/{}/$releasever/$basearch".format(opts.get('nickname', 'missing nickname in opts')),
@@ -552,6 +578,7 @@ class InstallerFetcher(InstallerBase):
     installers = [
                     UbuntuFocalInstaller,
                     UbuntuJammyInstaller,
+                    Popos2204Installer,
                     RockyInstaller,
                     AmazonLinux2Installer
                  ]
