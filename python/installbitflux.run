@@ -69,7 +69,7 @@ class InstallerBase:
         self.live_output = not self.config['quiet']
         self.dryrun = self.config['dryrun']
         self.config['bitflux_configfile'] = "/etc/bitflux/config/bitflux.conf"
-        self.config['bitflux_pkgname'] = "bitflux"
+        self.config['bitflux_pkgname'] = "bitfluxd"
         self.config['bitflux_servicename'] = "bitflux"
         self.settings = self.default_settings()
         self.reconcile_settings()
